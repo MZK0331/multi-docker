@@ -1,0 +1,54 @@
+name: CI Pipeline
+
+on:
+  push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+
+    services:
+      docker:
+        image: docker:20.10.7-dind
+        options: --privileged
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+
+      - name: Docker Login
+        run: docker login -u ${{ secrets.DOCKER_USERNAME }} -p ${{ secrets.DOCKER_PASSWORD }}
+
+      - name: Build React Test Image
+        run: docker build -t cygnetops/react-test -f ./client/Dockerfile.dev ./client
+
+      - name: Run Tests
+        run: docker run -e CI=true cygnetops/react-test npm test -- --coverage
+
+  build-images:
+    needs: build-and-test
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v3
+
+      - name: Build Client Image
+        run: docker build -t cygnetops/multi-client ./client
+
+      - name: Build Nginx Image
+        run: docker build -t cygnetops/multi-nginx ./nginx
+
+      - name: Build Server Image
+        run: docker build -t cygnetops/multi-server ./server
+
+      - name: Build Worker Image
+        run: docker build -t cygnetops/multi-worker ./worker
